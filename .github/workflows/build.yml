@@ -1,0 +1,145 @@
+
+name: Mini Excel Android Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Extract ZIP and Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      # 1. Download repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Install Java 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 3. Install Android SDK
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 4. Install Gradle and cache dependencies
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      # 5. Find and extract project ZIP
+      - name: Extract Android project ZIP
+        id: extract
+        shell: bash
+        run: |
+          set -e
+
+          echo "Searching for project ZIP..."
+
+          ZIP_FILES=$(find "$GITHUB_WORKSPACE" \
+            -type f -iname "*.zip" \
+            -not -path "*/.git/*")
+
+          ZIP_COUNT=$(echo "$ZIP_FILES" | grep -c . || true)
+
+          if [ "$ZIP_COUNT" -eq 0 ]; then
+            echo "ERROR: No ZIP file found!"
+            exit 1
+          fi
+
+          if [ "$ZIP_COUNT" -gt 1 ]; then
+            echo "ERROR: Multiple ZIP files found!"
+            echo "$ZIP_FILES"
+            exit 1
+          fi
+
+          ZIP_FILE="$ZIP_FILES"
+
+          echo "Found ZIP: $ZIP_FILE"
+
+          EXTRACT_DIR="$RUNNER_TEMP/miniexcel-project"
+
+          mkdir -p "$EXTRACT_DIR"
+
+          unzip -q "$ZIP_FILE" -d "$EXTRACT_DIR"
+
+          echo "ZIP extracted successfully."
+
+          # Find Android project root
+          SETTINGS_FILE=$(find "$EXTRACT_DIR" \
+            -name "settings.gradle.kts" \
+            -type f -print -quit)
+
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERROR: settings.gradle.kts not found!"
+            find "$EXTRACT_DIR" -maxdepth 3 -type f
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+
+          if [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
+            echo "ERROR: app/build.gradle.kts not found!"
+            exit 1
+          fi
+
+          echo "Project root: $PROJECT_DIR"
+
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      # 6. Install Android SDK packages
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      # 7. Build Debug and Release APK
+      - name: Build Android APKs
+        env:
+          PROJECT_DIR: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          set -e
+
+          cd "$PROJECT_DIR"
+
+          gradle --no-daemon \
+            :app:testDebugUnitTest \
+            :app:assembleDebug \
+            :app:assembleRelease
+
+      # 8. Verify APK files
+      - name: Verify APK outputs
+        env:
+          PROJECT_DIR: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          set -e
+
+          APK_DIR="$PROJECT_DIR/app/build/outputs/apk"
+
+          if ! find "$APK_DIR" -type f -name "*.apk" | grep -q .; then
+            echo "ERROR: No APK files generated!"
+            exit 1
+          fi
+
+          find "$APK_DIR" -type f -name "*.apk" -print
+
+      # 9. Upload APK artifacts
+      - name: Upload APK files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mini-Excel-APK-${{ github.sha }}
+          path: |
+            ${{ steps.extract.outputs.project_dir }}/app/build/outputs/apk/debug/*.apk
+            ${{ steps.extract.outputs.project_dir }}/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
