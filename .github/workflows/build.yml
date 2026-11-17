@@ -1,5 +1,5 @@
 
-name: Mini Excel Android Build
+name: eM Excel Android Build
 
 on:
   push:
@@ -25,7 +25,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Fix: Do not install deprecated Android SDK tools package
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -36,7 +35,7 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Extract Android project ZIP
+      - name: Extract eM Excel Project ZIP
         id: extract
         shell: bash
         run: |
@@ -62,7 +61,7 @@ jobs:
           fi
 
           ZIP_FILE="$ZIP_FILES"
-          EXTRACT_DIR="$RUNNER_TEMP/miniexcel-project"
+          EXTRACT_DIR="$RUNNER_TEMP/em-excel-project"
 
           mkdir -p "$EXTRACT_DIR"
           unzip -q "$ZIP_FILE" -d "$EXTRACT_DIR"
@@ -93,7 +92,7 @@ jobs:
           yes | sdkmanager --licenses > /dev/null
           sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Build Android APKs
+      - name: Build eM Excel Android APKs
         env:
           PROJECT_DIR: ${{ steps.extract.outputs.project_dir }}
         run: |
@@ -120,10 +119,10 @@ jobs:
 
           find "$APK_DIR" -type f -name "*.apk" -print
 
-      - name: Upload APK files
+      - name: Upload eM Excel APK files
         uses: actions/upload-artifact@v4
         with:
-          name: Mini-Excel-APK-${{ github.sha }}
+          name: eM-Excel-APK-${{ github.sha }}
           path: |
             ${{ steps.extract.outputs.project_dir }}/app/build/outputs/apk/debug/*.apk
             ${{ steps.extract.outputs.project_dir }}/app/build/outputs/apk/release/*.apk
