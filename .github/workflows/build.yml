@@ -9,7 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,7 +24,6 @@ jobs:
           fi
           echo "Unzipping: $ZIP_FILE"
           unzip -o "$ZIP_FILE"
-          ls -lh
           if [ -f "mini-excel-kotlin/settings.gradle.kts" ]; then
             echo "PROJECT_DIR=mini-excel-kotlin" >> $GITHUB_ENV
           elif [ -f "settings.gradle.kts" ]; then
@@ -49,6 +47,9 @@ jobs:
         with:
           java-version: "17"
           distribution: "temurin"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
