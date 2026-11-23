@@ -1,0 +1,54 @@
+name: Unpack ZIP & Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Extract mini-excel-clone.zip
+        run: |
+          mkdir -p dist
+          if [ -f "mini-excel-clone.zip" ]; then
+            unzip -o mini-excel-clone.zip -d dist/
+          else
+            ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+            if [ -n "$ZIP_FILE" ]; then
+              unzip -o "$ZIP_FILE" -d dist/
+            else
+              echo "No ZIP file found in root, copying root files..."
+              cp -r index.html style.css script.js README.md dist/ 2>/dev/null || true
+            fi
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
